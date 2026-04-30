@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MD → PDF</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      gap: 1.5rem;
+    }
+
+    h1 { font-size: 1.5rem; color: #111; }
+
+    .drop-zone {
+      width: 100%;
+      max-width: 640px;
+      border: 2px dashed #aaa;
+      border-radius: 12px;
+      padding: 3rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      color: #666;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .drop-zone.over { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; }
+    .drop-zone input { display: none; }
+
+    #preview-wrap {
+      width: 100%;
+      max-width: 640px;
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    #preview {
+      background: #fff;
+      border-radius: 8px;
+      padding: 2rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.1);
+      line-height: 1.7;
+      color: #222;
+    }
+
+    #preview h1, #preview h2, #preview h3 { margin: 1rem 0 .5rem; font-weight: bold; }
+    #preview h1 { font-size: 1.8em; }
+    #preview h2 { font-size: 1.4em; }
+    #preview h3 { font-size: 1.2em; }
+    #preview p { margin-bottom: .75rem; }
+    #preview pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow: auto; }
+    #preview code { font-family: monospace; font-size: .9em; background: #f4f4f4; padding: .1em .3em; border-radius: 3px; }
+    #preview pre code { background: none; padding: 0; }
+    #preview ul, #preview ol { padding-left: 1.5rem; margin-bottom: .75rem; }
+    #preview li { margin-bottom: .25rem; }
+    #preview blockquote { border-left: 4px solid #ddd; padding-left: 1rem; color: #555; margin-bottom: .75rem; }
+    #preview table { border-collapse: collapse; width: 100%; margin-bottom: .75rem; }
+    #preview th, #preview td { border: 1px solid #ddd; padding: .5rem .75rem; text-align: left; }
+    #preview th { background: #f0f0f0; font-weight: bold; }
+    #preview a { color: #4f46e5; }
+    #preview img { max-width: 100%; }
+    #preview hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+
+    button {
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: .75rem 1.5rem;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #4338ca; }
+    button:disabled { background: #a5b4fc; cursor: not-allowed; }
+
+    #file-name { font-size: .85rem; color: #555; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <h1>MD &rarr; PDF</h1>
+
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept=".md,.markdown" />
+    <p>Arrastrá tu archivo <strong>.md</strong> acá<br><small>o hacé click para seleccionarlo</small></p>
+  </div>
+
+  <div id="preview-wrap">
+    <p id="file-name"></p>
+    <div id="preview"></div>
+    <button id="btn-pdf">Descargar PDF</button>
+  </div>
+
+  <script>
+    const dropZone    = document.getElementById('drop-zone');
+    const fileInput   = document.getElementById('file-input');
+    const previewWrap = document.getElementById('preview-wrap');
+    const preview     = document.getElementById('preview');
+    const btnPdf      = document.getElementById('btn-pdf');
+    const fileNameEl  = document.getElementById('file-name');
+
+    let currentFileName = 'documento';
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('over');
+      if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files[0]) loadFile(fileInput.files[0]);
+    });
+
+    function loadFile(file) {
+      currentFileName = file.name.replace(/\.(md|markdown)$/i, '');
+      fileNameEl.textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = e => {
+        preview.innerHTML = marked.parse(e.target.result);
+        previewWrap.style.display = 'flex';
+      };
+      reader.readAsText(file);
+    }
+
+    btnPdf.addEventListener('click', async () => {
+      btnPdf.disabled = true;
+      btnPdf.textContent = 'Generando...';
+
+      try {
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+
+        const pageW = pdf.internal.pageSize.getWidth();   // 210mm
+        const pageH = pdf.internal.pageSize.getHeight();  // 297mm
+        const margin = 15;
+        const contentW = pageW - margin * 2;
+
+        // Capturamos el elemento visible directamente
+        const canvas = await html2canvas(preview, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff'
+        });
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.95);
+        const imgW = contentW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+
+        let y = margin;
+        let remainingH = imgH;
+        let sourceY = 0;
+
+        // Paginamos manualmente si el contenido supera una página
+        const pageContentH = pageH - margin * 2;
+
+        while (remainingH > 0) {
+          const sliceH = Math.min(remainingH, pageContentH);
+          const sliceCanvas = document.createElement('canvas');
+          const ratio = canvas.width / imgW;
+          sliceCanvas.width = canvas.width;
+          sliceCanvas.height = sliceH * ratio;
+
+          const ctx = sliceCanvas.getContext('2d');
+          ctx.drawImage(canvas, 0, sourceY * ratio, canvas.width, sliceH * ratio, 0, 0, canvas.width, sliceH * ratio);
+
+          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
+          pdf.addImage(sliceData, 'JPEG', margin, y, imgW, sliceH);
+
+          remainingH -= sliceH;
+          sourceY += sliceH;
+
+          if (remainingH > 0) {
+            pdf.addPage();
+            y = margin;
+          }
+        }
+
+        pdf.save(currentFileName + '.pdf');
+      } catch (err) {
+        console.error(err);
+        alert('Error al generar el PDF: ' + err.message);
+      } finally {
+        btnPdf.disabled = false;
+        btnPdf.textContent = 'Descargar PDF';
+      }
+    });
+  </script>
+</body>
+</html>
