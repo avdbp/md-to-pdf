@@ -1,106 +1,422 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MD → PDF</title>
+  <html lang="en">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0a0a0f;
+      --surface:   #111118;
+      --border:    rgba(255,255,255,.07);
+      --border-hi: rgba(139,92,246,.5);
+      --text:      #e2e2e8;
+      --muted:     #6b6b80;
+      --accent:    #8b5cf6;
+      --accent2:   #06b6d4;
+      --glow:      rgba(139,92,246,.15);
+    }
+
+    html { height: 100%; }
 
     body {
-      font-family: system-ui, sans-serif;
-      background: #f5f5f5;
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 2rem 1rem;
-      gap: 1.5rem;
+      padding: 3rem 1.5rem 5rem;
+      gap: 2rem;
+
+      /* grain texture */
+      background-image:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139,92,246,.12) 0%, transparent 60%),
+        url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
     }
 
-    h1 { font-size: 1.5rem; color: #111; }
+    /* ── Header ── */
+    .header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .5rem;
+      text-align: center;
+    }
 
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      font-size: 1.6rem;
+      font-weight: 600;
+      letter-spacing: -.02em;
+    }
+
+    .logo-icon {
+      width: 38px;
+      height: 38px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .95rem;
+      box-shadow: 0 0 24px var(--glow);
+    }
+
+    .logo-md { color: var(--accent); }
+    .logo-arrow { color: var(--muted); font-weight: 300; margin: 0 .1rem; }
+    .logo-pdf { color: var(--accent2); }
+
+    .tagline {
+      font-size: .85rem;
+      color: var(--muted);
+      font-weight: 400;
+      letter-spacing: .01em;
+    }
+
+    /* ── Drop zone ── */
     .drop-zone {
       width: 100%;
-      max-width: 640px;
-      border: 2px dashed #aaa;
-      border-radius: 12px;
-      padding: 3rem 2rem;
+      max-width: 680px;
+      border: 1.5px dashed rgba(139,92,246,.3);
+      border-radius: 20px;
+      padding: 3.5rem 2rem;
       text-align: center;
       cursor: pointer;
-      color: #666;
-      transition: border-color 0.2s, background 0.2s;
+      color: var(--muted);
+      background: rgba(139,92,246,.03);
+      transition: all .25s ease;
+      position: relative;
+      overflow: hidden;
     }
-    .drop-zone.over { border-color: #4f46e5; background: #eef2ff; color: #4f46e5; }
+
+    .drop-zone::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 60% at 50% 0%, rgba(139,92,246,.08), transparent);
+      opacity: 0;
+      transition: opacity .25s;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.over {
+      border-color: var(--border-hi);
+      background: rgba(139,92,246,.06);
+      color: var(--text);
+    }
+
+    .drop-zone:hover::before,
+    .drop-zone.over::before { opacity: 1; }
+
     .drop-zone input { display: none; }
 
+    .drop-icon {
+      font-size: 2.2rem;
+      margin-bottom: 1rem;
+      display: block;
+      filter: drop-shadow(0 0 12px var(--accent));
+    }
+
+    .drop-title {
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: .4rem;
+    }
+
+    .drop-sub {
+      font-size: .82rem;
+      color: var(--muted);
+    }
+
+    .drop-badge {
+      display: inline-block;
+      margin-top: 1.2rem;
+      padding: .25rem .75rem;
+      border-radius: 99px;
+      background: rgba(139,92,246,.12);
+      border: 1px solid rgba(139,92,246,.25);
+      color: var(--accent);
+      font-size: .75rem;
+      font-family: 'JetBrains Mono', monospace;
+      letter-spacing: .05em;
+    }
+
+    /* ── Preview wrap ── */
     #preview-wrap {
       width: 100%;
-      max-width: 640px;
+      max-width: 680px;
       display: none;
       flex-direction: column;
       gap: 1rem;
     }
 
-    #preview {
-      background: #fff;
-      border-radius: 8px;
-      padding: 2rem;
-      box-shadow: 0 1px 4px rgba(0,0,0,.1);
-      line-height: 1.7;
-      color: #222;
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: .75rem 1.2rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      gap: 1rem;
     }
 
-    #preview h1, #preview h2, #preview h3 { margin: 1rem 0 .5rem; font-weight: bold; }
-    #preview h1 { font-size: 1.8em; }
-    #preview h2 { font-size: 1.4em; }
-    #preview h3 { font-size: 1.2em; }
-    #preview p { margin-bottom: .75rem; }
-    #preview pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; overflow: auto; }
-    #preview code { font-family: monospace; font-size: .9em; background: #f4f4f4; padding: .1em .3em; border-radius: 3px; }
-    #preview pre code { background: none; padding: 0; }
-    #preview ul, #preview ol { padding-left: 1.5rem; margin-bottom: .75rem; }
-    #preview li { margin-bottom: .25rem; }
-    #preview blockquote { border-left: 4px solid #ddd; padding-left: 1rem; color: #555; margin-bottom: .75rem; }
-    #preview table { border-collapse: collapse; width: 100%; margin-bottom: .75rem; }
-    #preview th, #preview td { border: 1px solid #ddd; padding: .5rem .75rem; text-align: left; }
-    #preview th { background: #f0f0f0; font-weight: bold; }
-    #preview a { color: #4f46e5; }
-    #preview img { max-width: 100%; }
-    #preview hr { border: none; border-top: 1px solid #ddd; margin: 1.5rem 0; }
+    .file-info {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      min-width: 0;
+    }
 
-    button {
-      background: #4f46e5;
+    .file-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      flex-shrink: 0;
+      box-shadow: 0 0 6px #22c55e;
+    }
+
+    .file-name {
+      font-size: .85rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn-group { display: flex; gap: .6rem; align-items: center; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: .45rem .9rem;
+      font-size: .8rem;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,.15); color: var(--text); }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
       color: #fff;
       border: none;
-      border-radius: 8px;
-      padding: .75rem 1.5rem;
-      font-size: 1rem;
+      border-radius: 9px;
+      padding: .45rem 1.1rem;
+      font-size: .85rem;
+      font-weight: 500;
+      font-family: 'Inter', sans-serif;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all .2s;
+      white-space: nowrap;
+      box-shadow: 0 4px 14px rgba(139,92,246,.35);
+      display: flex;
+      align-items: center;
+      gap: .4rem;
     }
-    button:hover { background: #4338ca; }
-    button:disabled { background: #a5b4fc; cursor: not-allowed; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(139,92,246,.45); }
+    .btn-primary:disabled { opacity: .6; cursor: not-allowed; transform: none; }
 
-    #file-name { font-size: .85rem; color: #555; text-align: center; }
+    /* ── Preview card ── */
+    .preview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      overflow: hidden;
+    }
+
+    .preview-topbar {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      padding: .8rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,.02);
+    }
+
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-red   { background: #ff5f57; }
+    .dot-yellow{ background: #ffbd2e; }
+    .dot-green { background: #28c840; }
+
+    .preview-label {
+      margin-left: auto;
+      font-size: .72rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--muted);
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    #preview {
+      padding: 2.5rem 2.8rem;
+      line-height: 1.75;
+      color: #d4d4dc;
+      font-size: .95rem;
+    }
+
+    /* Markdown styles inside preview */
+    #preview h1, #preview h2, #preview h3,
+    #preview h4, #preview h5, #preview h6 {
+      color: #f0f0f5;
+      font-weight: 600;
+      margin: 1.5rem 0 .6rem;
+      letter-spacing: -.01em;
+    }
+    #preview h1 { font-size: 1.9em; border-bottom: 1px solid var(--border); padding-bottom: .4rem; }
+    #preview h2 { font-size: 1.4em; }
+    #preview h3 { font-size: 1.15em; }
+    #preview p  { margin-bottom: .85rem; }
+    #preview a  { color: var(--accent); text-decoration: none; border-bottom: 1px solid rgba(139,92,246,.3); transition: border-color .15s; }
+    #preview a:hover { border-color: var(--accent); }
+    #preview strong { color: #f0f0f5; font-weight: 600; }
+    #preview em { color: #b8b8cc; font-style: italic; }
+
+    #preview ul, #preview ol { padding-left: 1.6rem; margin-bottom: .85rem; }
+    #preview li { margin-bottom: .3rem; }
+    #preview li::marker { color: var(--accent); }
+
+    #preview blockquote {
+      border-left: 3px solid var(--accent);
+      padding: .6rem 1.2rem;
+      margin: 1rem 0;
+      background: rgba(139,92,246,.06);
+      border-radius: 0 8px 8px 0;
+      color: #a0a0b8;
+    }
+
+    #preview code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .85em;
+      background: rgba(139,92,246,.1);
+      border: 1px solid rgba(139,92,246,.15);
+      padding: .15em .4em;
+      border-radius: 5px;
+      color: #c4b5fd;
+    }
+
+    #preview pre {
+      background: #0d0d14;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.2rem 1.4rem;
+      overflow-x: auto;
+      margin-bottom: 1rem;
+    }
+    #preview pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      color: #a5b4fc;
+      font-size: .88em;
+    }
+
+    #preview table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 1rem;
+      font-size: .9em;
+    }
+    #preview th {
+      background: rgba(139,92,246,.1);
+      color: #c4b5fd;
+      font-weight: 600;
+      padding: .6rem 1rem;
+      border: 1px solid var(--border);
+      text-align: left;
+    }
+    #preview td {
+      padding: .55rem 1rem;
+      border: 1px solid var(--border);
+      color: #c8c8d8;
+    }
+    #preview tr:hover td { background: rgba(255,255,255,.02); }
+
+    #preview hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.8rem 0;
+    }
+
+    #preview img { max-width: 100%; border-radius: 8px; }
+
+    /* ── Spinner ── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    .btn-primary.loading .spinner { display: block; }
+    .btn-primary.loading .btn-label { opacity: .7; }
   </style>
 </head>
 <body>
 
-  <h1>MD &rarr; PDF</h1>
+  <header class="header">
+    <div class="logo">
+      <div class="logo-icon">📄</div>
+      <span><span class="logo-md">MD</span><span class="logo-arrow"> → </span><span class="logo-pdf">PDF</span></span>
+    </div>
+    <p class="tagline">Convert your Markdown files to PDF in seconds</p>
+  </header>
 
   <div class="drop-zone" id="drop-zone">
     <input type="file" id="file-input" accept=".md,.markdown" />
-    <p>Arrastrá tu archivo <strong>.md</strong> acá<br><small>o hacé click para seleccionarlo</small></p>
+    <span class="drop-icon">⬆️</span>
+    <p class="drop-title">Drop your file here</p>
+    <p class="drop-sub">or click to browse</p>
+    <span class="drop-badge">.md / .markdown</span>
   </div>
 
   <div id="preview-wrap">
-    <p id="file-name"></p>
-    <div id="preview"></div>
-    <button id="btn-pdf">Descargar PDF</button>
+    <div class="toolbar">
+      <div class="file-info">
+        <div class="file-dot"></div>
+        <span class="file-name" id="file-name">file.md</span>
+      </div>
+      <div class="btn-group">
+        <button class="btn-ghost" id="btn-new">← New file</button>
+        <button class="btn-primary" id="btn-pdf">
+          <div class="spinner"></div>
+          <span class="btn-label">Download PDF</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="preview-card">
+      <div class="preview-topbar">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
+        <span class="preview-label">preview</span>
+      </div>
+      <div id="preview"></div>
+    </div>
   </div>
 
   <script>
@@ -109,6 +425,7 @@
     const previewWrap = document.getElementById('preview-wrap');
     const preview     = document.getElementById('preview');
     const btnPdf      = document.getElementById('btn-pdf');
+    const btnNew      = document.getElementById('btn-new');
     const fileNameEl  = document.getElementById('file-name');
 
     let currentFileName = 'documento';
@@ -125,6 +442,12 @@
       if (fileInput.files[0]) loadFile(fileInput.files[0]);
     });
 
+    btnNew.addEventListener('click', () => {
+      previewWrap.style.display = 'none';
+      preview.innerHTML = '';
+      fileInput.value = '';
+    });
+
     function loadFile(file) {
       currentFileName = file.name.replace(/\.(md|markdown)$/i, '');
       fileNameEl.textContent = file.name;
@@ -132,70 +455,66 @@
       reader.onload = e => {
         preview.innerHTML = marked.parse(e.target.result);
         previewWrap.style.display = 'flex';
+        previewWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
       };
       reader.readAsText(file);
     }
 
     btnPdf.addEventListener('click', async () => {
       btnPdf.disabled = true;
-      btnPdf.textContent = 'Generando...';
+      btnPdf.classList.add('loading');
+      btnPdf.querySelector('.btn-label').textContent = 'Generating...';
 
       try {
         const { jsPDF } = window.jspdf;
         const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
-        const pageW = pdf.internal.pageSize.getWidth();   // 210mm
-        const pageH = pdf.internal.pageSize.getHeight();  // 297mm
+        const pageW = pdf.internal.pageSize.getWidth();
+        const pageH = pdf.internal.pageSize.getHeight();
         const margin = 15;
         const contentW = pageW - margin * 2;
 
-        // Capturamos el elemento visible directamente
         const canvas = await html2canvas(preview, {
           scale: 2,
           useCORS: true,
-          backgroundColor: '#ffffff'
+          backgroundColor: '#111118'
         });
 
-        const imgData = canvas.toDataURL('image/jpeg', 0.95);
         const imgW = contentW;
         const imgH = (canvas.height * imgW) / canvas.width;
-
-        let y = margin;
-        let remainingH = imgH;
-        let sourceY = 0;
-
-        // Paginamos manualmente si el contenido supera una página
         const pageContentH = pageH - margin * 2;
 
+        let remainingH = imgH;
+        let sourceY = 0;
+        let firstPage = true;
+
         while (remainingH > 0) {
+          if (!firstPage) pdf.addPage();
+          firstPage = false;
+
           const sliceH = Math.min(remainingH, pageContentH);
-          const sliceCanvas = document.createElement('canvas');
           const ratio = canvas.width / imgW;
+          const sliceCanvas = document.createElement('canvas');
           sliceCanvas.width = canvas.width;
           sliceCanvas.height = sliceH * ratio;
 
           const ctx = sliceCanvas.getContext('2d');
           ctx.drawImage(canvas, 0, sourceY * ratio, canvas.width, sliceH * ratio, 0, 0, canvas.width, sliceH * ratio);
 
-          const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95);
-          pdf.addImage(sliceData, 'JPEG', margin, y, imgW, sliceH);
+          pdf.addImage(sliceCanvas.toDataURL('image/jpeg', 0.95), 'JPEG', margin, margin, imgW, sliceH);
 
           remainingH -= sliceH;
           sourceY += sliceH;
-
-          if (remainingH > 0) {
-            pdf.addPage();
-            y = margin;
-          }
         }
 
         pdf.save(currentFileName + '.pdf');
       } catch (err) {
         console.error(err);
-        alert('Error al generar el PDF: ' + err.message);
+        alert('Error generating PDF: ' + err.message);
       } finally {
         btnPdf.disabled = false;
-        btnPdf.textContent = 'Descargar PDF';
+        btnPdf.classList.remove('loading');
+        btnPdf.querySelector('.btn-label').textContent = 'Download PDF';
       }
     });
   </script>
